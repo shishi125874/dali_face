@@ -10,7 +10,8 @@ import os
 import cv2
 import face_lib
 import detect_face
-import urllib, urllib2
+import urllib
+import urllib2
 import argparse
 import base64
 import datetime
@@ -99,18 +100,21 @@ def get_video(sess, video_path, margin, image_size, images_placeholder, embeddin
         c = 1
         while ret and not cap.get(0) > 15000:
             if (c % timeF == 0):
-                label, base_list = get_face_video(sess, frame, margin, image_size, images_placeholder,
-                                                  embeddings, phase_train_placeholder,
-                                                  embding,
-                                                  images_label_list, pnet, rnet, onet, dict,
-                                                  video_path, ip)
+                try:
+                    label, base_list = get_face_video(sess, frame, margin, image_size, images_placeholder,
+                                                      embeddings, phase_train_placeholder,
+                                                      embding,
+                                                      images_label_list, pnet, rnet, onet, dict,
+                                                      video_path, ip)
+                except Exception:
+                    continue
                 if not len(label) == 0:
                     labels.append(label)
                     basees.append(base_list)
             c += 1
             ret, frame = cap.read()
         if not len(labels) == 0:
-            faceNames = ",".join(labels[0])
+            faceNames = ",".join(labels)
         else:
             faceNames = ''
         viedoName = '/resources/video' + video_path.replace(image_path, '')
@@ -122,7 +126,8 @@ def get_video(sess, video_path, margin, image_size, images_placeholder, embeddin
 
 def get_face_video(sess, frame, margin, image_size, images_placeholder, embeddings, phase_train_placeholder, embding,
                    images_label_list, pnet, rnet, onet, dict, video_path, ip):
-    bounding_boxes, _ = detect_face.detect_face(frame, minsize, pnet, rnet, onet, threshold, factor)
+    bounding_boxes, _ = detect_face.detect_face(
+        frame, minsize, pnet, rnet, onet, threshold, factor)
     labels = []
     basees = []
     nrof_faces = bounding_boxes.shape[0]  # 人脸数目
@@ -145,18 +150,22 @@ def get_face_video(sess, frame, margin, image_size, images_placeholder, embeddin
             bb[3] = np.minimum(det[i][3] + margin / 2, img_size[0])
 
             cropped = frame[bb[1]:bb[3], bb[0]:bb[2], :]
-            scaled = cv2.resize(cropped, (image_size, image_size), interpolation=cv2.INTER_CUBIC)
-            image_output_name_dir = os.path.join(image_output_name, 'k_' + str(i) + '.png')
+            scaled = cv2.resize(
+                cropped, (image_size, image_size), interpolation=cv2.INTER_CUBIC)
+            image_output_name_dir = os.path.join(
+                image_output_name, 'k_' + str(i) + '.png')
             cv2.imwrite(image_output_name_dir, scaled)
             output_list.append(image_output_name_dir)
         if not len(output_list) == 0:
             images = facenet.load_data(output_list, False, False, image_size)
-            feed_dict = {images_placeholder: images, phase_train_placeholder: False}
+            feed_dict = {images_placeholder: images,
+                         phase_train_placeholder: False}
             embeddings_face = sess.run(embeddings, feed_dict=feed_dict)
             label = ''
             min_dist = 2
             for i in range(embding.shape[0]):
-                dist = np.sum(np.square(np.subtract(embeddings_face[0, :], embding[i, :])))
+                dist = np.sum(np.square(np.subtract(
+                    embeddings_face[0, :], embding[i, :])))
                 if min_dist > dist:
                     min_dist = dist
                     label = images_label_list[i]
@@ -165,7 +174,8 @@ def get_face_video(sess, frame, margin, image_size, images_placeholder, embeddin
                     dict[label] = dict[label] + 1
                 else:
                     dict[label] = 0
-                    save_image_dir = os.path.join(image_output_name, str(label) + '.png')
+                    save_image_dir = os.path.join(
+                        image_output_name, str(label) + '.png')
                     cv2.imwrite(save_image_dir, frame)
                     f = open(save_image_dir, 'rb')
                     ls_f = base64.b64encode(f.read())
@@ -196,7 +206,8 @@ def send_message(video, faceName, image_output_name, ip):
     # f = open(image_output_name, 'rb')
     # ls_f = base64.b64encode(f.read())
     print('sending message to %s' % ip)
-    data = urllib.urlencode({"videoName": video, "faceName": faceName, 'cappFace': image_output_name})
+    data = urllib.urlencode(
+        {"videoName": video, "faceName": faceName, 'cappFace': image_output_name})
     path_data = "http://" + ip + ":8080/dali/video/face"
     print(video, faceName, type(faceName), path_data)
     request = urllib2.Request(path_data, data)

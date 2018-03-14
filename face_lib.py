@@ -29,6 +29,7 @@ def set_face_lib(paths_foder, model, image_size=160):
             classes = os.listdir(path_exp)
             images_path_list = []
             images_label_list = []
+            labels = []
             embdings = []
             for i in range(len(classes)):
                 if not classes[i][0] == '.':
@@ -36,25 +37,22 @@ def set_face_lib(paths_foder, model, image_size=160):
                     image_type = imghdr.what(images_full)
                     if not image_type == None or image_type == '.gif':
                         images_path_list.append(images_full)
-                        images_label_list.append(os.path.splitext(classes[i])[0])
+                        images_label_list.append(
+                            os.path.splitext(classes[i])[0])
             for i in range(len(images_path_list / batch)):
-                path_batch = images_path_list[i * batch:(i + 1) * batch]
-                images_emb = facenet.load_data(path_batch, False, False, image_size)
-                feed_dicts = {images_placeholder: images_emb, phase_train_placeholder: False}
-                embding = sess.run(embeddings, feed_dict=feed_dicts)
-                embdings.append(embding)
-            np.savez('embbings', image=embdings, images_label_list=images_label_list)
-
-            #            images_emb = facenet.load_data(images_path_list, False, False, image_size)
-            #
-            #            print('save over.....')
-            #
-            #            feed_dicts = {images_placeholder: images_emb, phase_train_placeholder: False}
-            #            embding = sess.run(embeddings, feed_dict=feed_dicts)
-            #            print(embding.shape[0])
-            #            print(type(embding))
-            #            np.savez('embbings', image=embding, images_label_list=images_label_list)
-            # sess.close()
+                try:
+                    path_batch = images_path_list[i * batch:(i + 1) * batch]
+                    images_emb = facenet.load_data(
+                        path_batch, False, False, image_size)
+                    feed_dicts = {images_placeholder: images_emb,
+                                  phase_train_placeholder: False}
+                    embding = sess.run(embeddings, feed_dict=feed_dicts)
+                    embdings.append(embding)
+                    labels.append(images_label_list[i * batch:(i + 1) * batch])
+                except Exception:
+                    continue
+            np.savez('embbings', image=embdings, images_label_list=labels)
+            # np.savez('embbings', image=embdings, images_label_list=images_label_list)
 
 
 def get_face_lib():
@@ -71,7 +69,8 @@ def img_align(img_path, pnet, rnet, onet, image_size, margin=44):
     images_lists = []
     img = cv2.imread(os.path.expanduser(img_path))
     img_size = np.asarray(img.shape)[0:2]
-    bounding_boxes, _ = detect_face.detect_face(img, minsize, pnet, rnet, onet, threshold, factor)
+    bounding_boxes, _ = detect_face.detect_face(
+        img, minsize, pnet, rnet, onet, threshold, factor)
 
     nrof_faces = bounding_boxes.shape[0]
     print('detected image {} Detected_FaceNum: {}'.format(img_path, nrof_faces))
@@ -86,7 +85,8 @@ def img_align(img_path, pnet, rnet, onet, image_size, margin=44):
         bb[2] = np.minimum(det[2] + margin / 2, img_size[1])
         bb[3] = np.minimum(det[3] + margin / 2, img_size[0])
         face_frame = img[bb[1]:bb[3], bb[0]:bb[2], :]
-        aligned = cv2.resize(face_frame, (image_size, image_size), interpolation=cv2.INTER_CUBIC)
+        aligned = cv2.resize(
+            face_frame, (image_size, image_size), interpolation=cv2.INTER_CUBIC)
         output_name = os.path.join(os.path.split(img_path)[0], 'tmp')
         new_name = os.path.splitext(os.path.split(img_path)[1])[0] + '.png'
         output_name = os.path.join(output_name, new_name)
@@ -102,7 +102,10 @@ def set_fold_align(input, pnet, rnet, onet, image_size, margin=44):
     for i in range(nrof_classes):
         images_path = os.path.join(path_exp, classes[i])
         if os.path.isfile(images_path):
-            img_align(images_path, pnet, rnet, onet, image_size, margin)
+            try:
+                img_align(images_path, pnet, rnet, onet, image_size, margin)
+            except Exception:
+                continue
 
 
 def load_mtcnn_model():
@@ -118,9 +121,5 @@ def load_mtcnn_model():
 if __name__ == '__main__':
     model = '/home/shi/project/face/facenet/20170512-110547'
     zyst_lib = '/home/shi/project/face/zyst_align_lib'
-    # # set_face_lib(zyst_lib,model)
-    # path = 'embbings.txt'
-    # get_face_lib()
-    # set_face_lib(zyst_lib, model,182)
     pnet, rnet, onet = load_mtcnn_model()
     set_fold_align('/home/shi/data/db', pnet, rnet, onet, 160, 64)
